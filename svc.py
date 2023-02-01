@@ -11,7 +11,7 @@ from sklearn.linear_model import LassoCV, Lasso
 from multiprocessing.pool import ThreadPool
 from sklearn.preprocessing import scale
 # from sklearn.externals import joblib
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.utils._testing import ignore_warnings
 import matplotlib.pyplot as plt
 
@@ -204,7 +204,10 @@ def train_and_predict_svm(data_x, data_y, c):
     train_auc_score = 0
     train_acc_score = 0
 
-    for train_index, val_index in KFold(n_splits=CROSS_VALIDATION_FOLD_NUMBER).split(data_x):
+    # This cross-validation object is a variation of KFold that returns stratified folds. 
+    # The folds are made by preserving the percentage of samples for each class.
+    # Stratified sampling (分层抽样)
+    for train_index, val_index in StratifiedKFold(n_splits=CROSS_VALIDATION_FOLD_NUMBER).split(data_x, data_y):
         x_train, x_val = data_x[train_index], data_x[val_index]
         y_train, y_val = data_y[train_index], data_y[val_index]
         model = SVC(kernel='linear', C=c)
