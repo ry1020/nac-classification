@@ -25,6 +25,73 @@ REVERSE_MASK_T0_NAME_LIST = ['ACRIN-6698-342959', 'ACRIN-6698-587604', 'ACRIN-66
 REVERSE_MASK_T2_NAME_LIST = ['ACRIN-6698-409288', 'ACRIN-6698-587604', 'ACRIN-6698-687288', 'ACRIN-6698-728182''ACRIN-6698-839274'] # cases whose analysis mask needs to flip
 NULL_ANALYSIS_MASK_T2_NAME_LIST = ['ACRIN-6698-298101', 'ACRIN-6698-417474', 'ACRIN-6698-597907', 'ACRIN-6698-913527', 'ACRIN-6698-929980', 'ACRIN-6698-641246'] # cases whose analysis mask in T2 is all zero, so can't get radiomics
 
+STANDARD_PATIENT_ORIENTATION_LIST = [[-1, -0, 0, -0, -1, 0],  # needs to rot mask for 90 degree 1 time
+                                [ 1,  0, 0,  0,  1, 0]] # needs to rot mask for 90 degree 3 times
+
+def plot(img_array, slice_num_plot1, slice_num_plot2):
+    plt.figure()
+    plt.subplot(121)
+    plt.imshow(img_array[:, :, slice_num_plot1])
+    plt.subplot(122)
+    plt.imshow(img_array[:, :, slice_num_plot2])
+    plt.show()
+
+def image_dicom_to_nifti(temp_folder, img_nifti_path, is_plot, slice_num_plot1, slice_num_plot2):
+    dicom2nifti.convert_dicom.dicom_series_to_nifti(temp_folder, output_file = img_nifti_path)
+    img_nifti = nib.load(img_nifti_path)
+    img_array = np.array(img_nifti.dataobj)
+    os.remove(img_nifti_path)
+    if is_plot:
+        plot(img_array, slice_num_plot1, slice_num_plot2)
+    img_nifti = nib.Nifti1Image(img_array, None)
+    nib.save(img_nifti,img_nifti_path)
+
+    return img_array
+
+def mask_dicom_to_nifti(mask_folder, mask_nifti_path, img_array, patient_name, patient_orientation, scan_time_keyword, is_plot, slice_num_plot1, slice_num_plot2):
+    mask_array = pydicom.dcmread(os.path.join(mask_folder, "1-1.dcm"))
+    reader = pydicom_seg.SegmentReader()
+    result = reader.read(mask_array)
+    mask_array = result.segment_data(1)  # Assume segment_number in result.available_segments is only 1
+    mask_array = np.transpose(mask_array, (1, 2, 0))
+
+    if mask_array.shape[2] - img_array.shape[2] == 1:
+        mask_array = mask_array[:,:,:img_array.shape[2]] # if analysis mask has one more slice than image, remove the last slice
+
+
+    standard_patient_orientation = STANDARD_PATIENT_ORIENTATION_LIST[0]
+    if all([abs(patient_orientation[i] - standard_patient_orientation[i]) < 0.01 for i in range(len(standard_patient_orientation))]):
+        mask_array = np.rot90(mask_array, k = 1)
+
+    standard_patient_orientation = STANDARD_PATIENT_ORIENTATION_LIST[1]
+    if all([abs(patient_orientation[i] - standard_patient_orientation[i]) < 0.01 for i in range(len(standard_patient_orientation))]):
+        mask_array = np.rot90(mask_array, k = 3)
+
+    if patient_name in REVERSE_MASK_T0_NAME_LIST and scan_time_keyword == 'T0-':
+        mask_array = np.flip(mask_array, axis = 2) # flip along z axis for special cases
+    if patient_name in REVERSE_MASK_T2_NAME_LIST and scan_time_keyword == 'T2-':
+        mask_array = np.flip(mask_array, axis = 2) # flip along z axis for special cases
+
+    if is_plot:
+        plot(mask_array, slice_num_plot1, slice_num_plot2)
+
+    mask_array[mask_array == 0] = -1  # Use only mask value 0 as the tumor segmentation that was used in the primary analysis. This is the "SER" Functional Tumor Volume.
+    mask_array[mask_array > 0] = 0  # Set other mask value to 0
+    mask_array[mask_array < 0] = 1  # Set tumor segmentation mask value to 1
+    
+    if is_plot:
+        plot(mask_array, slice_num_plot1, slice_num_plot2)
+
+    mask_nifti = nib.Nifti1Image(mask_array, None)
+    nib.save(mask_nifti, mask_nifti_path)
+
+def mask_load_nifti(mask_nifti_path, is_plot, slice_num_plot1, slice_num_plot2):
+    mask_nifti = nib.load(mask_nifti_path)
+    mask_array = np.array(mask_nifti.dataobj)
+    if is_plot:
+        plot(mask_array, slice_num_plot1, slice_num_plot2)
+
+
 def get_radiomics(opt):
     para_radiomics_yaml_path = os.path.join(PROJECT_PATH, 'data', 'mydata', '{}.yaml'.format(opt.radiomics_parameters_name))
 
@@ -61,7 +128,6 @@ def get_radiomics(opt):
         if patient_name in NULL_ANALYSIS_MASK_T2_NAME_LIST and opt.scan_time_keyword == 'T2-' and opt.mask_name_keyword == 'Analysis Mask':
             print("skip patient since null analysis mask in T2")
             continue
-
 
         for time_folder in os.listdir(patient_name_folder):
             if opt.scan_time_keyword in time_folder:  # Choose time (T0,T1, orT2) image folder
@@ -101,74 +167,11 @@ def get_radiomics(opt):
         for slice in slices:
             shutil.copyfile(os.path.join(img_folder,slice),os.path.join(temp_folder,slice))
 
-        # image: dicom to nifti
-        dicom2nifti.convert_dicom.dicom_series_to_nifti(temp_folder, output_file = img_nifti_path)
-        img_nifti = nib.load(img_nifti_path)
-        img_array = np.array(img_nifti.dataobj)
-        os.remove(img_nifti_path)
-        if opt.is_plot:
-            plt.figure(1)
-            plt.subplot(221)
-            plt.imshow(img_array[:, :, slice_num_plot1])
-            plt.subplot(222)
-            plt.imshow(img_array[:, :, slice_num_plot2])
-        img_nifti = nib.Nifti1Image(img_array, None)
-        nib.save(img_nifti,img_nifti_path)
+        img_array = image_dicom_to_nifti(temp_folder, img_nifti_path, opt.is_plot, slice_num_plot1, slice_num_plot2)
 
+        mask_dicom_to_nifti(mask_folder, mask_nifti_path, img_array, patient_name, patient_orientation, opt.scan_time_keyword, opt.is_plot, slice_num_plot1, slice_num_plot2)
 
-        # mask: dicom to nifti
-        mask_array = pydicom.dcmread(os.path.join(mask_folder, "1-1.dcm"))
-        reader = pydicom_seg.SegmentReader()
-        result = reader.read(mask_array)
-        mask_array = result.segment_data(1)  # Assume segment_number in result.available_segments is only 1
-        mask_array = np.transpose(mask_array, (1, 2, 0))
-
-        if mask_array.shape[2] - img_array.shape[2] == 1:
-            mask_array = mask_array[:,:,:img_array.shape[2]] # if analysis mask has one more slice than image, remove the last slice
-
-        standard_patient_orientation_list = [[-1, -0, 0, -0, -1, 0],  # needs to rot mask for 90 degree 1 time
-                                    [ 1,  0, 0,  0,  1, 0]] # needs to rot mask for 90 degree 3 times
-
-        standard_patient_orientation = standard_patient_orientation_list[0]
-        if all([abs(patient_orientation[i] - standard_patient_orientation[i]) < 0.01 for i in range(len(standard_patient_orientation))]):
-            mask_array = np.rot90(mask_array, k = 1)
-
-        standard_patient_orientation = standard_patient_orientation_list[1]
-        if all([abs(patient_orientation[i] - standard_patient_orientation[i]) < 0.01 for i in range(len(standard_patient_orientation))]):
-            mask_array = np.rot90(mask_array, k = 3)
-
-        if patient_name in REVERSE_MASK_T0_NAME_LIST and opt.scan_time_keyword == 'T0-':
-            mask_array = np.flip(mask_array, axis = 2) # flip along z axis for special cases
-        if patient_name in REVERSE_MASK_T2_NAME_LIST and opt.scan_time_keyword == 'T2-':
-            mask_array = np.flip(mask_array, axis = 2) # flip along z axis for special cases
-
-        if opt.is_plot:
-            plt.subplot(223)
-            plt.imshow(mask_array[:, :, slice_num_plot1])
-            plt.subplot(224)
-            plt.imshow(mask_array[:, :, slice_num_plot2])
-            plt.show()
-
-        mask_array[mask_array == 0] = -1  # Use only mask value 0 as the tumor segmentation that was used in the primary analysis. This is the "SER" Functional Tumor Volume.
-        mask_array[mask_array > 0] = 0  # Set other mask value to 0
-        mask_array[mask_array < 0] = 1  # Set tumor segmentation mask value to 1
-        plt.figure(2)
-        plt.imshow(mask_array[:, :, slice_num_plot1])
-        plt.show()
-        mask_nifti = nib.Nifti1Image(mask_array, None)
-        nib.save(mask_nifti, mask_nifti_path)
-
-
-        # mask: load nifti
-        mask_nifti = nib.load(mask_nifti_path)
-        mask_array = np.array(mask_nifti.dataobj)
-        if opt.is_plot:
-            plt.subplot(223)
-            plt.imshow(mask_array[:, :, slice_num_plot1])
-            plt.subplot(224)
-            plt.imshow(mask_array[:, :, slice_num_plot2])
-            plt.show()
-
+        mask_load_nifti(mask_nifti_path, opt.is_plot, slice_num_plot1, slice_num_plot2)
 
         # Radiomics
         extractor = radiomics.featureextractor.RadiomicsFeatureExtractor(para_radiomics_yaml_path)
@@ -179,6 +182,6 @@ def get_radiomics(opt):
         for key, value in six.iteritems(radiomics_features):
             radiomics_features_dic[key+features_suffix] = value
 
-        # pickle.dump(radiomics_features_dic,open(features_path, 'wb'))
+        pickle.dump(radiomics_features_dic,open(features_path, 'wb'))
 
     print('--------FINISHED: isTraining_{}{}-------'.format(opt.is_training, features_suffix))
