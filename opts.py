@@ -2,8 +2,8 @@ import argparse
 from pathlib import Path
 import os
 
-# _Project_Path = '/Users/ranyan/workspace/Project_breast_fgt_seg'
-_Project_Path = '/radraid/ranyan/Project_breast_fgt_seg'
+# PROJECT_PATH = '/Users/ranyan/workspace/Project_nac_pcr_pre'
+PROJECT_PATH = '/media/hdd1/ran/Project_nac_pcr_pre'
 
 # Training settings
 def parse_opts():
@@ -33,7 +33,20 @@ def parse_opts():
                         help='start from which patient number')
     parser.add_argument('--is_plot',
                         action='store_true',
-                        help='If true, the image will be plotted.')                        
+                        help='If true, the image will be plotted.')
+
+    parser.add_argument('--selected_features_number',
+                        default=10,
+                        type=int,
+                        help='Number of features to input in SVM')
+    parser.add_argument('--radiomics_parameters_name',
+                        default='ParamSetting3_2dFalse_normFalse_binWidth15',
+                        type=str,
+                        help='Choose 2d, normalization, binWidth/binCount')
+    parser.add_argument('--cross_validation_fold_number',
+                        default=5,
+                        type=int,
+                        help='Number of cross validation fold')
     args = parser.parse_args()
 
     return args

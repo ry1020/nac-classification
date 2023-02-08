@@ -18,49 +18,32 @@ import matplotlib
 
 from opts import parse_opts
 
-# _Project_Path = '/Users/ranyan/workspace/Project_nac_pcr_pre'
-_Project_Path = '/media/hdd1/ran/Project_nac_pcr_pre'
+# PROJECT_PATH = '/Users/ranyan/workspace/Project_nac_pcr_pre'
+PROJECT_PATH = '/media/hdd1/ran/Project_nac_pcr_pre'
 
-reverse_mask_t0_name_list = ['ACRIN-6698-342959', 'ACRIN-6698-587604', 'ACRIN-6698-687288', 'ACRIN-6698-689480', 'ACRIN-6698-728182', 'ACRIN-6698-839274'] # cases whose analysis mask needs to flip
-reverse_mask_t2_name_list = ['ACRIN-6698-409288', 'ACRIN-6698-587604', 'ACRIN-6698-687288', 'ACRIN-6698-728182''ACRIN-6698-839274'] # cases whose analysis mask needs to flip
-null_analysis_mask_t2_name_list = ['ACRIN-6698-298101', 'ACRIN-6698-417474', 'ACRIN-6698-597907', 'ACRIN-6698-913527', 'ACRIN-6698-929980', 'ACRIN-6698-641246'] # cases whose analysis mask in T2 is all zero, so can't get radiomics
-
-
-radiomics_parameters_name = 'ParamSetting3_2dFalse_normFalse_binWidth15'
-para_radiomics_yaml_path = os.path.join(_Project_Path, 'data', 'mydata', '{}.yaml'.format(radiomics_parameters_name))
-
-training_folder = os.path.join(_Project_Path, 'data', 'manifest-Training-Set', 'ACRIN-6698')
-testing_folder = os.path.join(_Project_Path, 'data', 'manifest-Testing-Set', 'ACRIN-6698')
-mydata_training_folder_curr = os.path.join(_Project_Path, 'data', 'mydata', '{}.yaml'.format(radiomics_parameters_name), 'training_data')
-mydata_testing_folder_curr = os.path.join(_Project_Path, 'data', 'mydata', '{}.yaml'.format(radiomics_parameters_name), 'testing_data')
-mydata_training_folder = os.path.join(_Project_Path, 'data', 'mydata', 'training_data')
-mydata_testing_folder = os.path.join(_Project_Path, 'data', 'mydata', 'testing_data')
-temp_folder = os.path.join(_Project_Path, 'temp')
-
-
-def json_serial(obj):
-    if isinstance(obj, Path):
-        return str(obj)
-
-def get_opt():
-    opt = parse_opts()
-    
-    print(opt)
-    with (opt.result_path / 'opts.json').open('w') as opt_file:
-        json.dump(vars(opt), opt_file, default=json_serial)
-
-    return opt
-
+REVERSE_MASK_T0_NAME_LIST = ['ACRIN-6698-342959', 'ACRIN-6698-587604', 'ACRIN-6698-687288', 'ACRIN-6698-689480', 'ACRIN-6698-728182', 'ACRIN-6698-839274'] # cases whose analysis mask needs to flip
+REVERSE_MASK_T2_NAME_LIST = ['ACRIN-6698-409288', 'ACRIN-6698-587604', 'ACRIN-6698-687288', 'ACRIN-6698-728182''ACRIN-6698-839274'] # cases whose analysis mask needs to flip
+NULL_ANALYSIS_MASK_T2_NAME_LIST = ['ACRIN-6698-298101', 'ACRIN-6698-417474', 'ACRIN-6698-597907', 'ACRIN-6698-913527', 'ACRIN-6698-929980', 'ACRIN-6698-641246'] # cases whose analysis mask in T2 is all zero, so can't get radiomics
 
 def get_radiomics(opt):
-    image_name_suffix = opt.image_name_keyword[:-1].lower()
-    if opt.image_name_keyword == 'DCE-':
-        image_name_suffix = image_name_suffix + str(opt.dce_phase_select)  # Choose from dce0, dce2, ser, pe2, pe56
-    scan_time_suffix = opt.scan_time_keyword[:-1].lower() # Choose from t0, t1, t2
+    para_radiomics_yaml_path = os.path.join(PROJECT_PATH, 'data', 'mydata', '{}.yaml'.format(opt.radiomics_parameters_name))
+
+    training_folder = os.path.join(PROJECT_PATH, 'data', 'manifest-Training-Set', 'ACRIN-6698')
+    testing_folder = os.path.join(PROJECT_PATH, 'data', 'manifest-Testing-Set', 'ACRIN-6698')
+    mydata_training_folder_curr = os.path.join(PROJECT_PATH, 'data', 'mydata', '{}.yaml'.format(opt.radiomics_parameters_name), 'training_data')
+    mydata_testing_folder_curr = os.path.join(PROJECT_PATH, 'data', 'mydata', '{}.yaml'.format(opt.radiomics_parameters_name), 'testing_data')
+    mydata_training_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', 'training_data')
+    mydata_testing_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', 'testing_data')
+    temp_folder = os.path.join(PROJECT_PATH, 'temp')
 
     training_or_tesing_folder = training_folder if opt.is_training else testing_folder
     mydata_training_or_tesing_folder = mydata_training_folder if opt.is_training else mydata_testing_folder
     mydata_training_or_tesing_folder_curr = mydata_training_folder_curr if opt.is_training else mydata_testing_folder_curr
+
+    image_name_suffix = opt.image_name_keyword[:-1].lower()
+    if opt.image_name_keyword == 'DCE-':
+        image_name_suffix = image_name_suffix + str(opt.dce_phase_select)  # Choose from dce0, dce2, ser, pe2, pe56
+    scan_time_suffix = opt.scan_time_keyword[:-1].lower() # Choose from t0, t1, t2
 
     patient_name_list = [x for x in os.listdir(training_or_tesing_folder) if 'DS_Store' not in x]
     patient_name_list.sort()
@@ -75,7 +58,7 @@ def get_radiomics(opt):
         features_path = os.path.join(mydata_training_or_tesing_folder_curr,'features_{}_tumor_{}'.format(image_name_suffix, scan_time_suffix),"{}.p".format(patient_name))
         features_suffix = "_{}_tumor_{}".format(image_name_suffix, scan_time_suffix)
 
-        if patient_name in null_analysis_mask_t2_name_list and opt.scan_time_keyword == 'T2-' and opt.mask_name_keyword == 'Analysis Mask':
+        if patient_name in NULL_ANALYSIS_MASK_T2_NAME_LIST and opt.scan_time_keyword == 'T2-' and opt.mask_name_keyword == 'Analysis Mask':
             print("skip patient since null analysis mask in T2")
             continue
 
@@ -154,9 +137,9 @@ def get_radiomics(opt):
         if all([abs(patient_orientation[i] - standard_patient_orientation[i]) < 0.01 for i in range(len(standard_patient_orientation))]):
             mask_array = np.rot90(mask_array, k = 3)
 
-        if patient_name in reverse_mask_t0_name_list and opt.scan_time_keyword == 'T0-':
+        if patient_name in REVERSE_MASK_T0_NAME_LIST and opt.scan_time_keyword == 'T0-':
             mask_array = np.flip(mask_array, axis = 2) # flip along z axis for special cases
-        if patient_name in reverse_mask_t2_name_list and opt.scan_time_keyword == 'T2-':
+        if patient_name in REVERSE_MASK_T2_NAME_LIST and opt.scan_time_keyword == 'T2-':
             mask_array = np.flip(mask_array, axis = 2) # flip along z axis for special cases
 
         if opt.is_plot:
@@ -199,9 +182,3 @@ def get_radiomics(opt):
         # pickle.dump(radiomics_features_dic,open(features_path, 'wb'))
 
     print('--------FINISHED: isTraining_{}{}-------'.format(opt.is_training, features_suffix))
-
-if __name__ == '__main__':
-
-    opt = get_opt()
-
-    get_radiomics(opt)
