@@ -35,12 +35,13 @@ def get_features_folder_path(radiomics_parameters_name, is_training):
 
 def get_feature_prefix_category_set(features_folder_path):
     feature_prefix_category_set = list(set([category[:-2] for category in os.listdir(features_folder_path) if 'DS_Store' not in category]))
-    return feature_prefix_category_set 
+    feature_prefix_category_set = [ category for category in feature_prefix_category_set if 'features' in category ]  # remove 'img' and 'mask' files
+    return feature_prefix_category_set
 
 def get_clinical_data(clinical_data_path):
     csv_data = pd.read_csv(clinical_data_path)
     names = csv_data.columns
-    for col in range(5, 9):
+    for col in range(5, 9):    # Change 'race','Ltype', 'hrher4g', 'SBRgrade' into dummy features
         prefix = names[col]
         dummy_feature = pd.get_dummies(csv_data[prefix], prefix=prefix)
         csv_data = pd.concat([csv_data, dummy_feature], axis=1)
@@ -50,7 +51,7 @@ def get_clinical_data(clinical_data_path):
     labels = [1 if label == 'pCR' else 0 for label in csv_data[names[10]].to_list()]
 
     csv_data.drop([names[0], names[1], names[2], names[3], names[10], names[11], 'race_Unknown'],
-                  axis=1, inplace=True)
+                  axis=1, inplace=True)   # remove 'Patient ID Number', 'Patient ID DICOM', 'analy', 'elig', 'pcr', 'Split'
 
     return csv_data, patient_id_list, labels
 
@@ -72,7 +73,7 @@ def is_both_t0_t2_exist(patient_id, features_folder_path):
     feature_prefix_category_set = get_feature_prefix_category_set(features_folder_path)
     for category in feature_prefix_category_set:
         for t in T_SUFFIX:
-            path = features_folder_path + category + t + '/' + patient_id + '.p'
+            path = os.path.join(features_folder_path, category + t, patient_id + '.p')
             if not os.path.exists(path):
                 return False
     return True
@@ -84,8 +85,8 @@ def get_all_feature_data_for_single_patient(patient_id, features_folder_path):
     feature_prefix_category_set = get_feature_prefix_category_set(features_folder_path)
 
     for feature_prefix in feature_prefix_category_set:
-        t0_feature_file = features_folder_path + feature_prefix + 't0/' + patient_id + '.p'
-        t2_feature_file = features_folder_path + feature_prefix + 't2/' + patient_id + '.p'
+        t0_feature_file = os.path.join(features_folder_path, feature_prefix + 't0', patient_id + '.p')
+        t2_feature_file = os.path.join(features_folder_path, feature_prefix + 't2', patient_id + '.p')
         t0_features = pickle.load(open(t0_feature_file, 'rb'))
         t2_features = pickle.load(open(t2_feature_file, 'rb'))
 
@@ -131,13 +132,13 @@ def combine_data(radiomics_parameters_name, is_training):
 
     for i in range(number_of_data):
         patient_id = patient_id_list[i]
-        tmp_feature_names, feature_values = get_all_feature_data_for_single_patient(patient_id, features_folder_path)
+        feature_names, feature_values = get_all_feature_data_for_single_patient(patient_id, features_folder_path)
 
         for j in range(number_of_clinical_features):
-            tmp_feature_names.append(clinical_feature_names[j])
+            feature_names.append(clinical_feature_names[j])
             feature_values.append(clinical_data[i][j])
 
-        all_feature_names, feature_values = zip(*sorted(zip(tmp_feature_names, feature_values)))
+        all_feature_names, feature_values = zip(*sorted(zip(feature_names, feature_values)))
         data_x.append(feature_values)
         data_y.append(labels[i])
 
@@ -148,12 +149,12 @@ def combine_data(radiomics_parameters_name, is_training):
 
 @ignore_warnings(category=ConvergenceWarning)
 def select_features(opt):
-    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, opt.is_training)
+    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, is_training = True)
 
-    lasso = Lasso(alpha=0.003).fit(data_x, data_y)
+    lasso = Lasso(alpha = opt.lasso_alpha).fit(data_x, data_y)
     importance = np.abs(lasso.coef_)
     sorted_importance = sorted(importance)
-    threshold = sorted_importance[-100]
+    threshold = sorted_importance[-opt.lasso_feature_number]
 
     first_mask = np.array([v > threshold for v in importance])
     data_x = data_x[:, first_mask]
@@ -165,7 +166,7 @@ def select_features(opt):
     # plt.show()
 
     print('feature select starts at: ', datetime.datetime.now())
-    lasso_cv = LassoCV(tol=0.002, n_jobs=-1).fit(data_x, data_y)
+    lasso_cv = LassoCV(tol=opt.lassoCV_tolerance, n_jobs=-1).fit(data_x, data_y)
     sfs_forward = SequentialFeatureSelector(lasso_cv, 
                                             n_features_to_select=opt.selected_features_number, 
                                             direction="forward").fit(data_x, data_y)
@@ -185,7 +186,7 @@ def select_features(opt):
 
     cor_mask = []
     for i in range(opt.selected_features_number):
-        cor_mask.append(all([corr_m[i][j] <= 0.95 for j in range(i+1, opt.selected_features_number)]))
+        cor_mask.append(all([corr_m[i][j] <= opt.feature_correlation_threshold for j in range(i+1, opt.selected_features_number)]))
 
     cor_mask = np.array(cor_mask)
     data_x = data_x[:, cor_mask]
@@ -194,7 +195,7 @@ def select_features(opt):
 
     return data_x, data_y, final_features_names.tolist()
 
-def train_and_predict_svm(data_x, data_y, c, cross_validation_fold_number):
+def train_and_predict_svm(data_x, data_y, c, svc_kernel, cross_validation_fold_number):
     average_accuracy_score = 0
     average_auc_score = 0
 
@@ -207,7 +208,7 @@ def train_and_predict_svm(data_x, data_y, c, cross_validation_fold_number):
     for train_index, val_index in StratifiedKFold(n_splits = cross_validation_fold_number).split(data_x, data_y):
         x_train, x_val = data_x[train_index], data_x[val_index]
         y_train, y_val = data_y[train_index], data_y[val_index]
-        model = SVC(kernel='linear', C=c)
+        model = SVC(kernel=svc_kernel, C=c)
         model.fit(x_train, y_train)
 
         y_decision = model.decision_function(x_val)
@@ -226,12 +227,12 @@ def train_and_predict_svm(data_x, data_y, c, cross_validation_fold_number):
 
 
 def train_svm_all_data(opt, selected_features_names, c, model_path):
-    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, opt.is_training)
+    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, is_training = True)
     masks = np.array([name in selected_features_names for name in feature_names])
     data_x = np.array(data_x)[:, masks]
     data_y = np.array(data_y)
 
-    model = SVC(kernel='linear', C=c)
+    model = SVC(kernel=opt.svc_kernel, C=c)
     model.fit(data_x, data_y)
 
     y_predict = model.predict(data_x)
@@ -243,9 +244,9 @@ def train_svm_all_data(opt, selected_features_names, c, model_path):
     return auc, acc
 
 def test_svm(opt, selected_features_names, model_path, predict_result_path):
-    clinical_info_file_path = TRAINING_CLINICAL_INFO_FILE_PATH if opt.is_training else TESTING_CLINICAL_INFO_FILE_PATH
+    clinical_info_file_path = TESTING_CLINICAL_INFO_FILE_PATH
     _, patient_id_list, _ = get_clinical_data(clinical_info_file_path)
-    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, opt.is_training)
+    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, is_training = False)
 
     masks = np.array([name in selected_features_names for name in feature_names])
     data_x = np.array(data_x)[:, masks]
@@ -259,9 +260,9 @@ def test_svm(opt, selected_features_names, model_path, predict_result_path):
     auc = roc_auc_score(data_y, y_decision)
     acc = accuracy_score(data_y, y_predict)
 
-    # y_predict = y_predict.tolist()
-    # index = patient_id_list.index('ACRIN-6698-641246')  # TODO: what's this for?
-    # y_predict = y_predict[0:index] + [1] + y_predict[index:]
+    y_predict = y_predict.tolist()
+    index = patient_id_list.index('ACRIN-6698-641246')  # 该patient因为没有同时具有t0和t2的feature所以被去除了，默认是'pCR'
+    y_predict = y_predict[0:index] + [1] + y_predict[index:]
 
     print(len(y_predict), y_predict)
     print(len(patient_id_list), patient_id_list)

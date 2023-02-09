@@ -7,10 +7,7 @@ PROJECT_PATH = '/media/hdd1/ran/Project_nac_pcr_pre'
 
 # Training settings
 def parse_opts():
-    parser = argparse.ArgumentParser(description='NAC Classification Project')
-    parser.add_argument('--is_training',
-                        action='store_false',
-                        help='If true, training is performed, otherwise testing is performed')                    
+    parser = argparse.ArgumentParser(description='NAC Classification Project')    
     parser.add_argument('--image_name_keyword',
                         default='DCE-',
                         type=str,
@@ -47,6 +44,33 @@ def parse_opts():
                         default=5,
                         type=int,
                         help='Number of cross validation fold')
+    parser.add_argument('--lasso_alpha',
+                        default=0.003,
+                        type=float,
+                        help='Constant that multiplies the L1 term, controlling regularization strength')
+    parser.add_argument('--lasso_feature_number',
+                        default=100,
+                        type=int,
+                        help='Number of features selected by lasso')
+    parser.add_argument('--lassoCV_tolerance',
+                        default=0.02,
+                        type=float,
+                        help='The tolerance for the optimization (0.02 | 0.002)')
+    parser.add_argument('--feature_correlation_threshold',
+                        default=0.95,
+                        type=float,
+                        help='Feature will be omitted if correlation > threshold')
+    parser.add_argument('--svc_kernel',
+                        default='linear',
+                        type=str,
+                        help='Choose from (linear | poly | rbf | sigmoid | precomputed)')
+    parser.add_argument('--svc_c_list',
+                        default= [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100],
+                        type=float,
+                        nargs='+',
+                        help='Regularization parameter. The strength of the regularization is' +
+                              'inversely proportional to C. The penalty is a squared l2 penalty.' +
+                              'Choose from [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]')
     args = parser.parse_args()
 
     return args

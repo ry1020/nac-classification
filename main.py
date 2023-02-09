@@ -28,32 +28,38 @@ if __name__ == '__main__':
 
     opt = get_opt()
 
-    get_radiomics(opt)
+    # # get radiomics for training data
+    # get_radiomics(opt, is_training = True)
+
+    # # get radiomics for testing data
+    # get_radiomics(opt, is_training = False)
 
     # select features
     data_x, data_y, final_features_names = select_features(opt)
 
     # svm training using cross validation
-    c_list = [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]
-    pool = ThreadPool(len(c_list))
+    pool = ThreadPool(len(opt.svc_c_list))
     threads = []
-    for c in c_list:
-        threads.append(pool.apply_async(train_and_predict_svm, args=(data_x, data_y, c, opt.cross_validation_fold_number)))
+    for c in opt.svc_c_list:
+        threads.append(pool.apply_async(train_and_predict_svm, args=(data_x, data_y, c, opt.svc_kernel, opt.cross_validation_fold_number)))
     pool.close()
     pool.join()
     results = [p.get() for p in threads]
+    print('c     auc   acc')
     for auc, acc, c in results:
-        print(c, auc, acc)
+        print(format(c, '.3f'), format(auc, '.3f'), format(acc, '.3f'))
     max_auc, max_acc, best_c = sorted(results, reverse=True)[0]
-    print('Best c {}, max auc {}, max acc {}'.format(best_c, max_auc, max_acc))
+    print('Best c:' + str(best_c) + ',max auc:'+ str(max_auc) + ',max acc:' + str(max_acc))
 
-    model_path = os.path.join(PROJECT_PATH, 'results', 'model_{}_features{}_c{}.p'.format(opt.radiomics_parameters_name,str(opt.selected_features_number),str(best_c)))
-    predict_result_path = os.path.join(PROJECT_PATH, 'results', 'predictResults_{}_features{}_c{}.csv'.format(opt.radiomics_parameters_name,str(opt.selected_features_number),str(best_c)))
+    model_path = os.path.join(PROJECT_PATH, 'results', 'model_' + opt.radiomics_parameters_name 
+                                + '_features' + str(opt.selected_features_number) + '_c' + str(best_c) + '.p')
+    predict_result_path = os.path.join(PROJECT_PATH, 'results', 'predictResults_' + opt.radiomics_parameters_name 
+                                + '_features' + str(opt.selected_features_number) + '_c' + str(best_c) + '.csv')
     
     # svm training using all training data
     training_auc, training_acc = train_svm_all_data(opt, final_features_names, best_c, model_path)
-    print('training auc, acc: ', training_auc, training_acc)
+    print('training auc:' + str(format(training_auc, '.3f')) + ', acc:', format(training_acc, '.3f'))
     
     # svm testing
     testing_auc, testing_acc = test_svm(opt, final_features_names, model_path, predict_result_path)
-    print('training auc, acc: ', testing_auc, testing_acc)
+    print('testing auc:' + str(format(testing_auc, '.3f')) + ', acc:', format(testing_acc, '.3f'))
