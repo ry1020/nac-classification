@@ -1,20 +1,6 @@
 import json
-import dicom2nifti
 import os
 from pathlib import Path
-import radiomics
-import yaml
-import pydicom
-import pydicom_seg
-import SimpleITK as sitk
-import matplotlib.pyplot as plt
-import numpy as np
-import nibabel as nib
-import six
-import pickle
-import shutil
-import natsort
-import matplotlib
 from multiprocessing.pool import ThreadPool
 
 from opts import parse_opts
@@ -32,7 +18,7 @@ def get_opt():
     opt = parse_opts()
     
     print(opt)
-    with (opt.result_path / 'opts.json').open('w') as opt_file:
+    with open(os.path.join(PROJECT_PATH, 'results', 'opts.json'), 'w') as opt_file:
         json.dump(vars(opt), opt_file, default=json_serial)
 
     return opt

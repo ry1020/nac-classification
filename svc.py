@@ -146,13 +146,6 @@ def combine_data(radiomics_parameters_name, is_training):
 
     return data_x, data_y, all_feature_names, patient_id_list
 
-def save_feature_csv():
-    data_x, data_y, feature_names, patient_id_list = combine_data()
-    data = {'patient_id': patient_id_list, 'pCR/non-pCR': data_y}
-    for i in range(len(feature_names)):
-        data[feature_names[i]] = data_x[:,i]
-    pd.DataFrame(data).to_csv('/Users/ranyan/workspace/BMMR2/Project_Ran_radiomics/features.csv')
-
 @ignore_warnings(category=ConvergenceWarning)
 def select_features(opt):
     data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, opt.is_training)

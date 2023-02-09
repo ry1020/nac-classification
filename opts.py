@@ -9,7 +9,7 @@ PROJECT_PATH = '/media/hdd1/ran/Project_nac_pcr_pre'
 def parse_opts():
     parser = argparse.ArgumentParser(description='NAC Classification Project')
     parser.add_argument('--is_training',
-                        action='store_true',
+                        action='store_false',
                         help='If true, training is performed, otherwise testing is performed')                    
     parser.add_argument('--image_name_keyword',
                         default='DCE-',
@@ -20,7 +20,7 @@ def parse_opts():
                         type=int,
                         help='Choose from (0, 2)')
     parser.add_argument('--scan_time_keyword',
-                        default='T1-',
+                        default='T0-',
                         type=str,
                         help='Choose from (T0- | T1- | T2-)')
     parser.add_argument('--mask_name_keyword',
@@ -40,7 +40,7 @@ def parse_opts():
                         type=int,
                         help='Number of features to input in SVM')
     parser.add_argument('--radiomics_parameters_name',
-                        default='ParamSetting3_2dFalse_normFalse_binWidth15',
+                        default='ParamSetting1_2dTrue_normFalse_binWidth15',
                         type=str,
                         help='Choose 2d, normalization, binWidth/binCount')
     parser.add_argument('--cross_validation_fold_number',

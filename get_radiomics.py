@@ -36,15 +36,17 @@ def plot(img_array, slice_num_plot1, slice_num_plot2):
     plt.imshow(img_array[:, :, slice_num_plot2])
     plt.show()
 
-def image_dicom_to_nifti(temp_folder, img_nifti_path, is_plot, slice_num_plot1, slice_num_plot2):
-    dicom2nifti.convert_dicom.dicom_series_to_nifti(temp_folder, output_file = img_nifti_path)
-    img_nifti = nib.load(img_nifti_path)
+def image_dicom_to_nifti(temp_folder, img_nifti_path, patient_name, is_plot, slice_num_plot1, slice_num_plot2):
+    os.makedirs(img_nifti_path, exist_ok = True)
+    img_nifti_file = os.path.join(img_nifti_path,"{}.nii".format(patient_name))
+    dicom2nifti.convert_dicom.dicom_series_to_nifti(temp_folder, output_file = img_nifti_file)
+    img_nifti = nib.load(img_nifti_file)
     img_array = np.array(img_nifti.dataobj)
-    os.remove(img_nifti_path)
+    os.remove(img_nifti_file)
     if is_plot:
         plot(img_array, slice_num_plot1, slice_num_plot2)
     img_nifti = nib.Nifti1Image(img_array, None)
-    nib.save(img_nifti,img_nifti_path)
+    nib.save(img_nifti,img_nifti_file)
 
     return img_array
 
@@ -57,7 +59,6 @@ def mask_dicom_to_nifti(mask_folder, mask_nifti_path, img_array, patient_name, p
 
     if mask_array.shape[2] - img_array.shape[2] == 1:
         mask_array = mask_array[:,:,:img_array.shape[2]] # if analysis mask has one more slice than image, remove the last slice
-
 
     standard_patient_orientation = STANDARD_PATIENT_ORIENTATION_LIST[0]
     if all([abs(patient_orientation[i] - standard_patient_orientation[i]) < 0.01 for i in range(len(standard_patient_orientation))]):
@@ -83,10 +84,14 @@ def mask_dicom_to_nifti(mask_folder, mask_nifti_path, img_array, patient_name, p
         plot(mask_array, slice_num_plot1, slice_num_plot2)
 
     mask_nifti = nib.Nifti1Image(mask_array, None)
-    nib.save(mask_nifti, mask_nifti_path)
 
-def mask_load_nifti(mask_nifti_path, is_plot, slice_num_plot1, slice_num_plot2):
-    mask_nifti = nib.load(mask_nifti_path)
+    os.makedirs(mask_nifti_path, exist_ok = True)
+    mask_nifti_file = os.path.join(mask_nifti_path,"{}.nii".format(patient_name))
+    nib.save(mask_nifti, mask_nifti_file)
+
+def mask_load_nifti(mask_nifti_path, patient_name, is_plot, slice_num_plot1, slice_num_plot2):
+    mask_nifti_file = os.path.join(mask_nifti_path,"{}.nii".format(patient_name))
+    mask_nifti = nib.load(mask_nifti_file)
     mask_array = np.array(mask_nifti.dataobj)
     if is_plot:
         plot(mask_array, slice_num_plot1, slice_num_plot2)
@@ -97,15 +102,12 @@ def get_radiomics(opt):
 
     training_folder = os.path.join(PROJECT_PATH, 'data', 'manifest-Training-Set', 'ACRIN-6698')
     testing_folder = os.path.join(PROJECT_PATH, 'data', 'manifest-Testing-Set', 'ACRIN-6698')
-    mydata_training_folder_curr = os.path.join(PROJECT_PATH, 'data', 'mydata', '{}.yaml'.format(opt.radiomics_parameters_name), 'training_data')
-    mydata_testing_folder_curr = os.path.join(PROJECT_PATH, 'data', 'mydata', '{}.yaml'.format(opt.radiomics_parameters_name), 'testing_data')
-    mydata_training_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', 'training_data')
-    mydata_testing_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', 'testing_data')
+    mydata_training_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameters_name, 'training_data')
+    mydata_testing_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameters_name, 'testing_data')
     temp_folder = os.path.join(PROJECT_PATH, 'temp')
 
     training_or_tesing_folder = training_folder if opt.is_training else testing_folder
     mydata_training_or_tesing_folder = mydata_training_folder if opt.is_training else mydata_testing_folder
-    mydata_training_or_tesing_folder_curr = mydata_training_folder_curr if opt.is_training else mydata_testing_folder_curr
 
     image_name_suffix = opt.image_name_keyword[:-1].lower()
     if opt.image_name_keyword == 'DCE-':
@@ -115,14 +117,13 @@ def get_radiomics(opt):
     patient_name_list = [x for x in os.listdir(training_or_tesing_folder) if 'DS_Store' not in x]
     patient_name_list.sort()
 
-    for i in range(opt.start_patient,len(patient_name_list)):
-        patient_name = patient_name_list[i]
+    for patient_name in patient_name_list[opt.start_patient:]:
         print("------ patient: {}------".format(patient_name))
 
         patient_name_folder = os.path.join(training_or_tesing_folder,patient_name)
-        img_nifti_path = os.path.join(mydata_training_or_tesing_folder,'img_{}_{}'.format(image_name_suffix, scan_time_suffix),"{}.nii".format(patient_name))
-        mask_nifti_path = os.path.join(mydata_training_or_tesing_folder,'analysisMask_tumor_{}'.format(scan_time_suffix),"{}.nii".format(patient_name))
-        features_path = os.path.join(mydata_training_or_tesing_folder_curr,'features_{}_tumor_{}'.format(image_name_suffix, scan_time_suffix),"{}.p".format(patient_name))
+        img_nifti_path = os.path.join(mydata_training_or_tesing_folder,'img_{}_{}'.format(image_name_suffix, scan_time_suffix))
+        mask_nifti_path = os.path.join(mydata_training_or_tesing_folder,'analysisMask_tumor_{}'.format(scan_time_suffix))
+        features_path = os.path.join(mydata_training_or_tesing_folder,'features_{}_tumor_{}'.format(image_name_suffix, scan_time_suffix))
         features_suffix = "_{}_tumor_{}".format(image_name_suffix, scan_time_suffix)
 
         if patient_name in NULL_ANALYSIS_MASK_T2_NAME_LIST and opt.scan_time_keyword == 'T2-' and opt.mask_name_keyword == 'Analysis Mask':
@@ -134,15 +135,16 @@ def get_radiomics(opt):
                 break
         time_folder = os.path.join(patient_name_folder,time_folder)
 
-        for allimage_folder in os.listdir(time_folder):
+        for all_image_folder in os.listdir(time_folder):
             if opt.image_name_keyword == 'PE56-':
-                if 'PE5-' in allimage_folder or 'PE6-' in allimage_folder or  'PE4-' in allimage_folder:
-                    img_folder = os.path.join(time_folder,allimage_folder)
+                if 'PE5-' in all_image_folder or 'PE6-' in all_image_folder or  'PE4-' in all_image_folder:
+                    img_folder = os.path.join(time_folder,all_image_folder)
             else:
-                if opt.image_name_keyword in allimage_folder:
-                    img_folder = os.path.join(time_folder, allimage_folder)
-            if opt.mask_name_keyword in allimage_folder:
-                mask_folder = os.path.join(time_folder,allimage_folder)
+                if opt.image_name_keyword in all_image_folder:
+                    img_folder = os.path.join(time_folder, all_image_folder)
+            if opt.mask_name_keyword in all_image_folder:
+                mask_folder = os.path.join(time_folder,all_image_folder)
+
 
         img_file_list = [x for x in os.listdir(img_folder) if 'DS_Store' not in x]
         img_file_list_natsorted = natsort.natsorted(img_file_list)
@@ -167,21 +169,23 @@ def get_radiomics(opt):
         for slice in slices:
             shutil.copyfile(os.path.join(img_folder,slice),os.path.join(temp_folder,slice))
 
-        img_array = image_dicom_to_nifti(temp_folder, img_nifti_path, opt.is_plot, slice_num_plot1, slice_num_plot2)
+        img_array = image_dicom_to_nifti(temp_folder, img_nifti_path, patient_name, opt.is_plot, slice_num_plot1, slice_num_plot2)
 
         mask_dicom_to_nifti(mask_folder, mask_nifti_path, img_array, patient_name, patient_orientation, opt.scan_time_keyword, opt.is_plot, slice_num_plot1, slice_num_plot2)
 
-        mask_load_nifti(mask_nifti_path, opt.is_plot, slice_num_plot1, slice_num_plot2)
+        mask_load_nifti(mask_nifti_path, patient_name, opt.is_plot, slice_num_plot1, slice_num_plot2)
 
         # Radiomics
         extractor = radiomics.featureextractor.RadiomicsFeatureExtractor(para_radiomics_yaml_path)
-        radiomics_features = extractor.execute(img_nifti_path, mask_nifti_path)
+        radiomics_features = extractor.execute(os.path.join(img_nifti_path,"{}.nii".format(patient_name)), os.path.join(mask_nifti_path,"{}.nii".format(patient_name)))
 
         # save radiomics features
         radiomics_features_dic = {}
         for key, value in six.iteritems(radiomics_features):
             radiomics_features_dic[key+features_suffix] = value
 
-        pickle.dump(radiomics_features_dic,open(features_path, 'wb'))
+        os.makedirs(features_path, exist_ok = True)
+        features_file = os.path.join(features_path,"{}.p".format(patient_name))
+        pickle.dump(radiomics_features_dic,open(features_file, 'wb'))
 
     print('--------FINISHED: isTraining_{}{}-------'.format(opt.is_training, features_suffix))
