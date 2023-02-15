@@ -33,7 +33,7 @@ def parse_opts():
                         help='If true, the image will be plotted.')
 
     parser.add_argument('--selected_feature_number_list',
-                        default=[10],
+                        default=[5, 10, 15],
                         type=int,
                         nargs='+',
                         help='Number of features to input in SVM [5, 10, 15]')
@@ -70,7 +70,7 @@ def parse_opts():
                         type=str,
                         help='Choose from (linear | poly | rbf | sigmoid)')
     parser.add_argument('--svc_c_list',
-                        default= [1],
+                        default= [0.03, 0.1, 0.3, 1, 3, 10, 30],
                         type=float,
                         nargs='+',
                         help='Regularization parameter. The strength of the regularization is' +

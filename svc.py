@@ -186,10 +186,9 @@ def select_feature(opt, selected_feature_number, data_x, data_y, feature_name):
 
 def train_and_predict_svm(c, selected_feature_number, opt):
     auc = []
-    acc = []
-
     train_auc = []
-    train_acc = []
+    # acc = []
+    # train_acc = []
 
     data_x, data_y, feature_name, _ = combine_data(opt.radiomics_parameter_name, is_training = True)
 
