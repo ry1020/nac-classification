@@ -98,12 +98,12 @@ def mask_load_nifti(mask_nifti_path, patient_name, is_plot, slice_num_plot1, sli
 
 
 def get_radiomics(opt,is_training):
-    para_radiomics_yaml_path = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameters_name + '.yaml')
+    para_radiomics_yaml_path = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameter_name + '.yaml')
 
     training_folder = os.path.join(PROJECT_PATH, 'data', 'manifest-Training-Set', 'ACRIN-6698')
     testing_folder = os.path.join(PROJECT_PATH, 'data', 'manifest-Testing-Set', 'ACRIN-6698')
-    mydata_training_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameters_name, 'training_data')
-    mydata_testing_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameters_name, 'testing_data')
+    mydata_training_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameter_name, 'training_data')
+    mydata_testing_folder = os.path.join(PROJECT_PATH, 'data', 'mydata', opt.radiomics_parameter_name, 'testing_data')
     temp_folder = os.path.join(PROJECT_PATH, 'temp')
 
     training_or_tesing_folder = training_folder if is_training else testing_folder

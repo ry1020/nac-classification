@@ -1,4 +1,3 @@
-from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.svm import SVC
 import numpy as np
@@ -8,7 +7,7 @@ import os
 import datetime
 from sklearn.feature_selection import SequentialFeatureSelector
 from sklearn.linear_model import LassoCV, Lasso
-from sklearn.preprocessing import scale
+from sklearn.preprocessing import StandardScaler
 # from sklearn.externals import joblib
 from sklearn.model_selection import StratifiedKFold
 from sklearn.utils._testing import ignore_warnings
@@ -26,35 +25,34 @@ DELETE_FEATURES = ['firstorder_Minimum']
 
 T_SUFFIX = ['t0', 't2']
 
-def get_features_folder_path(radiomics_parameters_name, is_training):
+def get_feature_folder_path(radiomics_parameter_name, is_training):
     if is_training:
-        features_folder_path = os.path.join(PROJECT_PATH, 'data', 'mydata', radiomics_parameters_name, 'training_data')
+        feature_folder_path = os.path.join(PROJECT_PATH, 'data', 'mydata', radiomics_parameter_name, 'training_data')
     else:
-        features_folder_path = os.path.join(PROJECT_PATH, 'data', 'mydata', radiomics_parameters_name, 'testing_data')
-    return features_folder_path
+        feature_folder_path = os.path.join(PROJECT_PATH, 'data', 'mydata', radiomics_parameter_name, 'testing_data')
+    return feature_folder_path
 
-def get_feature_prefix_category_set(features_folder_path):
-    feature_prefix_category_set = list(set([category[:-2] for category in os.listdir(features_folder_path) if 'DS_Store' not in category]))
-    feature_prefix_category_set = [ category for category in feature_prefix_category_set if 'features' in category ]  # remove 'img' and 'mask' files
+def get_feature_prefix_category_set(feature_folder_path):
+    feature_prefix_category_set = list(set([category[:-2] for category in os.listdir(feature_folder_path) if 'DS_Store' not in category]))
+    feature_prefix_category_set = [ category for category in feature_prefix_category_set if 'feature' in category ]  # remove 'img' and 'mask' files
     return feature_prefix_category_set
 
 def get_clinical_data(clinical_data_path):
     csv_data = pd.read_csv(clinical_data_path)
-    names = csv_data.columns
-    for col in range(5, 9):    # Change 'race','Ltype', 'hrher4g', 'SBRgrade' into dummy features
-        prefix = names[col]
+    name = csv_data.columns
+    for col in range(5, 9):    # Change 'race','Ltype', 'hrher4g', 'SBRgrade' into dummy feature
+        prefix = name[col]
         dummy_feature = pd.get_dummies(csv_data[prefix], prefix=prefix)
         csv_data = pd.concat([csv_data, dummy_feature], axis=1)
         csv_data.drop([prefix], axis=1, inplace=True)
 
-    patient_id_list = csv_data[names[1]].to_list()
-    labels = [1 if label == 'pCR' else 0 for label in csv_data[names[10]].to_list()]
+    patient_id_list = csv_data[name[1]].to_list()
+    labels = [1 if label == 'pCR' else 0 for label in csv_data[name[10]].to_list()]
 
-    csv_data.drop([names[0], names[1], names[2], names[3], names[10], names[11], 'race_Unknown'],
+    csv_data.drop([name[0], name[1], name[2], name[3], name[10], name[11], 'race_Unknown'],
                   axis=1, inplace=True)   # remove 'Patient ID Number', 'Patient ID DICOM', 'analy', 'elig', 'pcr', 'Split'
 
     return csv_data, patient_id_list, labels
-
 
 def is_feature(feature_key):
     if '_ser_' in feature_key and ('_glcm_' in feature_key or '_glrlm_' in feature_key
@@ -68,35 +66,33 @@ def is_feature(feature_key):
             return True
     return False
 
-
-def is_both_t0_t2_exist(patient_id, features_folder_path):
-    feature_prefix_category_set = get_feature_prefix_category_set(features_folder_path)
+def is_both_t0_t2_exist(patient_id, feature_folder_path):
+    feature_prefix_category_set = get_feature_prefix_category_set(feature_folder_path)
     for category in feature_prefix_category_set:
         for t in T_SUFFIX:
-            path = os.path.join(features_folder_path, category + t, patient_id + '.p')
+            path = os.path.join(feature_folder_path, category + t, patient_id + '.p')
             if not os.path.exists(path):
                 return False
     return True
 
-
-def get_all_feature_data_for_single_patient(patient_id, features_folder_path):
-    feature_names = []
+def get_all_feature_data_for_single_patient(patient_id, feature_folder_path):
+    feature_name = []
     feature_values = []
-    feature_prefix_category_set = get_feature_prefix_category_set(features_folder_path)
+    feature_prefix_category_set = get_feature_prefix_category_set(feature_folder_path)
 
     for feature_prefix in feature_prefix_category_set:
-        t0_feature_file = os.path.join(features_folder_path, feature_prefix + 't0', patient_id + '.p')
-        t2_feature_file = os.path.join(features_folder_path, feature_prefix + 't2', patient_id + '.p')
-        t0_features = pickle.load(open(t0_feature_file, 'rb'))
-        t2_features = pickle.load(open(t2_feature_file, 'rb'))
+        t0_feature_file = os.path.join(feature_folder_path, feature_prefix + 't0', patient_id + '.p')
+        t2_feature_file = os.path.join(feature_folder_path, feature_prefix + 't2', patient_id + '.p')
+        t0_feature = pickle.load(open(t0_feature_file, 'rb'))
+        t2_feature = pickle.load(open(t2_feature_file, 'rb'))
 
-        for t0_key, val in t0_features.items():
+        for t0_key, val in t0_feature.items():
             if not is_feature(t0_key):
                 continue
 
             key_prefix = t0_key[:-2]
             t2_key = key_prefix + 't2'
-            t2_val = float(t2_features[t2_key])
+            t2_val = float(t2_feature[t2_key])
             t0_val = float(val)
 
             # Since it represents asymmetry, could be positive or negative, so get absolute value
@@ -104,171 +100,170 @@ def get_all_feature_data_for_single_patient(patient_id, features_folder_path):
                 t0_val = abs(t0_val)
                 t2_val = abs(t2_val)
 
-            feature_names.append(t0_key)
-            feature_names.append(t2_key)
-            feature_names.append(key_prefix + 'delta')
+            feature_name.append(t0_key)
+            feature_name.append(t2_key)
+            feature_name.append(key_prefix + 'delta')
             feature_values.append(t0_val)
             feature_values.append(t2_val)
             feature_values.append((t2_val - t0_val) / t0_val)
 
-    return feature_names[:], feature_values[:]
+    return feature_name[:], feature_values[:]
 
-
-def combine_data(radiomics_parameters_name, is_training):
-    features_folder_path = get_features_folder_path(radiomics_parameters_name, is_training)
+def combine_data(radiomics_parameter_name, is_training):
+    feature_folder_path = get_feature_folder_path(radiomics_parameter_name, is_training)
 
     clinical_info_file_path = TRAINING_CLINICAL_INFO_FILE_PATH if is_training else TESTING_CLINICAL_INFO_FILE_PATH
     clinical_data, patient_id_list, labels = get_clinical_data(clinical_info_file_path)
-    clinical_feature_names = clinical_data.columns.tolist()
-    patient_id_list = [patient_id for patient_id in patient_id_list if is_both_t0_t2_exist(patient_id, features_folder_path)] # 因为算t0和算t2的病人有不一样的
+    clinical_feature_name = clinical_data.columns.tolist()
+    patient_id_list = [patient_id for patient_id in patient_id_list if is_both_t0_t2_exist(patient_id, feature_folder_path)] # 因为算t0和算t2的病人有不一样的
     number_of_data = len(patient_id_list)
-    number_of_clinical_features = len(clinical_feature_names)
+    number_of_clinical_feature = len(clinical_feature_name)
 
     clinical_data = clinical_data.to_numpy()
 
     data_x = []
     data_y = []
-    all_feature_names = []
+    all_feature_name = []
 
     for i in range(number_of_data):
         patient_id = patient_id_list[i]
-        feature_names, feature_values = get_all_feature_data_for_single_patient(patient_id, features_folder_path)
+        feature_name, feature_values = get_all_feature_data_for_single_patient(patient_id, feature_folder_path)
 
-        for j in range(number_of_clinical_features):
-            feature_names.append(clinical_feature_names[j])
+        for j in range(number_of_clinical_feature):
+            feature_name.append(clinical_feature_name[j])
             feature_values.append(clinical_data[i][j])
 
-        all_feature_names, feature_values = zip(*sorted(zip(feature_names, feature_values)))
+        all_feature_name, feature_values = zip(*sorted(zip(feature_name, feature_values)))
         data_x.append(feature_values)
         data_y.append(labels[i])
 
-    data_x = scale(np.array(data_x))
+    data_x = np.array(data_x)
     data_y = np.array(data_y)
+    scaler = StandardScaler()
+    scaler.fit(data_x)
+    data_x = scaler.transform(data_x)
 
-    return data_x, data_y, all_feature_names, patient_id_list
+    return data_x, data_y, all_feature_name, patient_id_list
 
-@ignore_warnings(category=ConvergenceWarning)
-def select_features(opt):
-    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, is_training = True)
-
-    lasso = Lasso(alpha = opt.lasso_alpha).fit(data_x, data_y)
+def select_feature(opt, selected_feature_number, data_x, data_y, feature_name):
+    lasso = Lasso(alpha = opt.lasso_alpha, tol=opt.lasso_tolerance).fit(data_x, data_y)
     importance = np.abs(lasso.coef_)
     sorted_importance = sorted(importance)
     threshold = sorted_importance[-opt.lasso_feature_number]
 
-    first_mask = np.array([v > threshold for v in importance])
-    data_x = data_x[:, first_mask]
-    feature_names = np.array(feature_names)[first_mask]
+    lasso_mask = np.array([v > threshold for v in importance])
+    selected_data_x = data_x[:, lasso_mask]
+    selected_feature_name = np.array(feature_name)[lasso_mask]
 
     # fig, (ax1, ax2) = plt.subplots(2,1)
     # ax1.plot(range(334), importance)
     # ax2.imshow(corr_m, aspect = 'auto')
     # plt.show()
 
-    print('feature select starts at: ', datetime.datetime.now())
-    lasso_cv = LassoCV(tol=opt.lassoCV_tolerance, n_jobs=-1).fit(data_x, data_y)
+    lasso_cv = LassoCV(tol=opt.lassoCV_tolerance, n_jobs=-1).fit(selected_data_x, data_y)
     sfs_forward = SequentialFeatureSelector(lasso_cv, 
-                                            n_features_to_select=opt.selected_features_number, 
-                                            direction="forward").fit(data_x, data_y)
+                                            n_features_to_select=selected_feature_number, 
+                                            direction="forward", n_jobs=-1).fit(selected_data_x, data_y)
 
-    masks = sfs_forward.get_support()
+    sfs_mask = sfs_forward.get_support()
 
-    print('feature select ends at: ', datetime.datetime.now())
+    selected_data_x = selected_data_x[:, sfs_mask]
+    selected_feature_name = np.array(selected_feature_name)[sfs_mask]
 
-    data_x = data_x[:, masks]
-    selected_features_names = np.array(feature_names)[masks]
-    print(selected_features_names.shape, selected_features_names)
-
-    df = pd.DataFrame(data_x)
+    df = pd.DataFrame(selected_data_x)
     corr_m = df.corr().abs()
     corr_m = np.array(corr_m).tolist()
-    print(corr_m)
 
     cor_mask = []
-    for i in range(opt.selected_features_number):
-        cor_mask.append(all([corr_m[i][j] <= opt.feature_correlation_threshold for j in range(i+1, opt.selected_features_number)]))
+    for i in range(selected_feature_number):
+        cor_mask.append(all([corr_m[i][j] <= opt.feature_correlation_threshold for j in range(i+1, selected_feature_number)]))
 
     cor_mask = np.array(cor_mask)
-    data_x = data_x[:, cor_mask]
-    final_features_names = selected_features_names[cor_mask]
-    print(final_features_names.shape, final_features_names.tolist())
+    selected_data_x = selected_data_x[:, cor_mask]
+    selected_feature_name = selected_feature_name[cor_mask]
 
-    return data_x, data_y, final_features_names.tolist()
+    return selected_data_x, data_y, selected_feature_name.tolist()
 
-def train_and_predict_svm(data_x, data_y, c, svc_kernel, cross_validation_fold_number):
-    average_accuracy_score = 0
-    average_auc_score = 0
+def train_and_predict_svm(c, selected_feature_number, opt):
+    auc = []
+    acc = []
 
-    train_auc_score = 0
-    train_acc_score = 0
+    train_auc = []
+    train_acc = []
 
+    data_x, data_y, feature_name, _ = combine_data(opt.radiomics_parameter_name, is_training = True)
+
+    with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+        print('Cross validation', file=output_file)
+    
     # This cross-validation object is a variation of KFold that returns stratified folds. 
     # The folds are made by preserving the percentage of samples for each class.
-    # Stratified sampling (分层抽样)
-    for train_index, val_index in StratifiedKFold(n_splits = cross_validation_fold_number).split(data_x, data_y):
+    # Stratified sampling
+    for train_index, val_index in StratifiedKFold(n_splits = opt.cross_validation_fold_number).split(data_x, data_y):
         x_train, x_val = data_x[train_index], data_x[val_index]
         y_train, y_val = data_y[train_index], data_y[val_index]
-        model = SVC(kernel=svc_kernel, C=c)
-        model.fit(x_train, y_train)
 
-        y_decision = model.decision_function(x_val)
-        y_predict = model.predict(x_val)
+        selected_x_train, y_train, selected_feature_name = select_feature(opt, selected_feature_number, x_train, y_train, feature_name)
+        with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+            print('c:' + str(c) + ', feature number:' + str(selected_feature_number) + ', Selected features:' + str(selected_feature_name), file=output_file)
 
-        auc = roc_auc_score(y_val, y_decision)
-        average_auc_score += auc / cross_validation_fold_number
+        masks = np.array([name in selected_feature_name for name in feature_name])
+        selected_x_val = np.array(x_val)[:, masks]
 
-        acc = accuracy_score(y_val, y_predict)
-        average_accuracy_score += acc / cross_validation_fold_number
+        model = SVC(kernel=opt.svc_kernel, C=c).fit(selected_x_train, y_train)
 
-        train_auc_score += roc_auc_score(y_train, model.decision_function(x_train)) / cross_validation_fold_number
-        train_acc_score += accuracy_score(y_train, model.predict(x_train)) / cross_validation_fold_number
+        y_decision = model.decision_function(selected_x_val)
+        auc.append(roc_auc_score(y_val, y_decision))
+        train_auc.append(roc_auc_score(y_train, model.decision_function(selected_x_train)))
+        
+        # y_predict = model.predict(selected_x_val)
+        # acc.append(accuracy_score(y_val, y_predict))
+        # train_acc.append(accuracy_score(y_train, model.predict(selected_x_train)))
 
-    return average_auc_score, average_accuracy_score, c
+    mean_auc = np.mean(np.array(auc))
+    std_auc = np.std(np.array(auc))
 
+    # Calculate the 95% confidence interval for the AUC scores
+    n = len(auc)
+    t_value = 2.776 # t-value for a 95% confidence interval with n-1 degrees of freedom (n = 5 fold)
+    lower_ci_auc = mean_auc - t_value * (std_auc / np.sqrt(n))
+    upper_ci_auc = mean_auc + t_value * (std_auc / np.sqrt(n))
 
-def train_svm_all_data(opt, selected_features_names, c, model_path):
-    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, is_training = True)
-    masks = np.array([name in selected_features_names for name in feature_names])
-    data_x = np.array(data_x)[:, masks]
-    data_y = np.array(data_y)
+    mean_train_auc = np.mean(np.array(train_auc))
 
-    model = SVC(kernel=opt.svc_kernel, C=c)
-    model.fit(data_x, data_y)
+    return mean_auc, lower_ci_auc, upper_ci_auc, mean_train_auc
 
-    y_predict = model.predict(data_x)
-    y_decision = model.decision_function(data_x)
-    auc = roc_auc_score(data_y, y_decision)
-    acc = accuracy_score(data_y, y_predict)
+def train_and_test_svm(opt, selected_feature_number, c, model_path, predict_result_path):
+    data_x, data_y, feature_name, _ = combine_data(opt.radiomics_parameter_name, is_training = True)
+    
+    selected_data_x, data_y, selected_feature_name = select_feature(opt, selected_feature_number, data_x, data_y, feature_name)
+
+    with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+        print('Final train', file=output_file)
+        print('c:' + str(c) + ', feature number:' + str(selected_feature_number) + ', Selected features:' + str(selected_feature_name), file=output_file)
+
+    model = SVC(kernel=opt.svc_kernel, C=c).fit(selected_data_x, data_y)
 
     pickle.dump(model, open(model_path, 'wb'))
-    return auc, acc
 
-def test_svm(opt, selected_features_names, model_path, predict_result_path):
     clinical_info_file_path = TESTING_CLINICAL_INFO_FILE_PATH
     _, patient_id_list, _ = get_clinical_data(clinical_info_file_path)
-    data_x, data_y, feature_names, _ = combine_data(opt.radiomics_parameters_name, is_training = False)
+    data_x, data_y, feature_name, _ = combine_data(opt.radiomics_parameter_name, is_training = False)
 
-    masks = np.array([name in selected_features_names for name in feature_names])
-    data_x = np.array(data_x)[:, masks]
-    data_y = np.array(data_y)
+    masks = np.array([name in selected_feature_name for name in feature_name])
+    selected_data_x = data_x[:, masks]
 
-    model = pickle.load(open(model_path, 'rb'))
-
-
-    y_predict = model.predict(data_x)
-    y_decision = model.decision_function(data_x)
+    y_predict = model.predict(selected_data_x)
+    y_decision = model.decision_function(selected_data_x)
     auc = roc_auc_score(data_y, y_decision)
-    acc = accuracy_score(data_y, y_predict)
+    # acc = accuracy_score(data_y, y_predict)
 
     y_predict = y_predict.tolist()
     index = patient_id_list.index('ACRIN-6698-641246')  # 该patient因为没有同时具有t0和t2的feature所以被去除了，默认是'pCR'
     y_predict = y_predict[0:index] + [1] + y_predict[index:]
 
-    print(len(y_predict), y_predict)
-    print(len(patient_id_list), patient_id_list)
-
     data = {'patient_id': patient_id_list, 'pCR/non-pCR': y_predict}
     pd.DataFrame(data).to_csv(predict_result_path)
     
-    return auc, acc
+    return auc, selected_feature_name
 

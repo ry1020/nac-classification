@@ -32,12 +32,13 @@ def parse_opts():
                         action='store_true',
                         help='If true, the image will be plotted.')
 
-    parser.add_argument('--selected_features_number',
-                        default=10,
+    parser.add_argument('--selected_feature_number_list',
+                        default=[10],
                         type=int,
-                        help='Number of features to input in SVM')
-    parser.add_argument('--radiomics_parameters_name',
-                        default='ParamSetting1_2dTrue_normFalse_binWidth15',
+                        nargs='+',
+                        help='Number of features to input in SVM [5, 10, 15]')
+    parser.add_argument('--radiomics_parameter_name',
+                        default='ParamSetting3_2dFalse_normFalse_binWidth15',
                         type=str,
                         help='Choose 2d, normalization, binWidth/binCount')
     parser.add_argument('--cross_validation_fold_number',
@@ -52,8 +53,12 @@ def parse_opts():
                         default=100,
                         type=int,
                         help='Number of features selected by lasso')
+    parser.add_argument('--lasso_tolerance',
+                        default=0.002,
+                        type=float,
+                        help='The tolerance for the optimization (0.02 | 0.002)')
     parser.add_argument('--lassoCV_tolerance',
-                        default=0.02,
+                        default=0.002,
                         type=float,
                         help='The tolerance for the optimization (0.02 | 0.002)')
     parser.add_argument('--feature_correlation_threshold',
@@ -61,11 +66,11 @@ def parse_opts():
                         type=float,
                         help='Feature will be omitted if correlation > threshold')
     parser.add_argument('--svc_kernel',
-                        default='linear',
+                        default='poly',
                         type=str,
-                        help='Choose from (linear | poly | rbf | sigmoid | precomputed)')
+                        help='Choose from (linear | poly | rbf | sigmoid)')
     parser.add_argument('--svc_c_list',
-                        default= [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100],
+                        default= [1],
                         type=float,
                         nargs='+',
                         help='Regularization parameter. The strength of the regularization is' +
