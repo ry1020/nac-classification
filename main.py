@@ -40,13 +40,13 @@ if __name__ == '__main__':
     for c in opt.svc_c_list:
         for selected_feature_number in opt.selected_feature_number_list:
             mean_auc, lower_ci_auc, upper_ci_auc, mean_train_auc = train_and_predict_svm(c, selected_feature_number, opt)
-            with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+            with open(opt.result_txt_path, 'a') as output_file:
                 print('c:'+ str(c) + ', Feature_number: ' + str(selected_feature_number) + ', AUC[CI]:' + str(format(mean_auc, '.3f'))+ '[' + str(format(lower_ci_auc, '.3f')) + '-' + str(format(upper_ci_auc, '.3f')) + '], train_auc:' + str(format(mean_train_auc, '.3f')), file=output_file)
             result.append((c, selected_feature_number, mean_auc, lower_ci_auc, upper_ci_auc, mean_train_auc))
     result = np.array(result, dtype=dtype)
 
     best_c, best_selected_feature_number, best_mean_auc, lower_ci_auc, upper_ci_auc, train_aubest_c = np.sort(result, order='mean_auc')[result.shape[0]]
-    with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+    with open(opt.result_txt_path, 'a') as output_file:
         print('Best c:' + str(best_c) + ', Best feature number:' + str(best_selected_feature_number) + ', Max AUC[CI]:'+ str(format(best_mean_auc, '.3f'))+ '[' + str(format(lower_ci_auc, '.3f')) + '-' + str(format(upper_ci_auc, '.3f')) + '], train_auc:' + str(format(train_aubest_c, '.3f')), file=output_file)
 
     # svm training using all training data and testing using test dataset
@@ -56,5 +56,5 @@ if __name__ == '__main__':
                                 + '_features' + str(best_selected_feature_number) + '_c' + str(best_c) + '.csv')
 
     auc, selected_feature_name = train_and_test_svm(opt, best_selected_feature_number, best_c, model_path, predict_result_path)
-    with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+    with open(opt.result_txt_path, 'a') as output_file:
         print('Test AUC:'+ str(format(auc, '.3f')) + ', feature names:' + str(selected_feature_name), file=output_file)

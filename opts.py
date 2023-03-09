@@ -7,7 +7,11 @@ PROJECT_PATH = '/media/hdd1/ran/Project_nac_pcr_pre'
 
 # Training settings
 def parse_opts():
-    parser = argparse.ArgumentParser(description='NAC Classification Project')    
+    parser = argparse.ArgumentParser(description='NAC Classification Project')
+    parser.add_argument('--result_txt_path',
+                    default = os.path.join(PROJECT_PATH, 'results', 'output_vif.txt'),
+                    type=Path,
+                    help='Result txt path')
     parser.add_argument('--image_name_keyword',
                         default='DCE-',
                         type=str,

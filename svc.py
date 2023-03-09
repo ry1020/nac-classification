@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import StratifiedKFold
 from sklearn.utils._testing import ignore_warnings
 import matplotlib.pyplot as plt
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 # PROJECT_PATH = '/Users/ranyan/workspace/Project_nac_pcr_pre'
 PROJECT_PATH = '/media/hdd1/ran/Project_nac_pcr_pre'
@@ -145,6 +146,12 @@ def combine_data(radiomics_parameter_name, is_training):
 
     return data_x, data_y, all_feature_name, patient_id_list
 
+def calculate_vif(data_x, feature_name):
+    vif = pd.DataFrame()
+    vif['index'] = feature_name
+    vif['VIF'] = [variance_inflation_factor(data_x,i) for i in range(data_x.shape[1])]
+    return vif
+
 def select_feature(opt, selected_feature_number, data_x, data_y, feature_name):
     lasso = Lasso(alpha = opt.lasso_alpha, tol=opt.lasso_tolerance).fit(data_x, data_y)
     importance = np.abs(lasso.coef_)
@@ -154,6 +161,15 @@ def select_feature(opt, selected_feature_number, data_x, data_y, feature_name):
     lasso_mask = np.array([v > threshold for v in importance])
     selected_data_x = data_x[:, lasso_mask]
     selected_feature_name = np.array(feature_name)[lasso_mask]
+
+    vif = calculate_vif(selected_data_x, selected_feature_name)
+    while (vif['VIF'] > 5).any():       # VIF threshold can be changed
+        remove = vif.sort_values(by='VIF',ascending=False)['index'][:1].values[0]
+        index = np.where(selected_feature_name == remove)[0]
+        selected_feature_name = np.delete(selected_feature_name, index)
+        selected_data_x = np.delete(selected_data_x, index, axis=1)
+        vif = calculate_vif(selected_data_x, selected_feature_name)
+
 
     # fig, (ax1, ax2) = plt.subplots(2,1)
     # ax1.plot(range(334), importance)
@@ -192,7 +208,7 @@ def train_and_predict_svm(c, selected_feature_number, opt):
 
     data_x, data_y, feature_name, _ = combine_data(opt.radiomics_parameter_name, is_training = True)
 
-    with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+    with open(opt.result_txt_path, 'a') as output_file:
         print('Cross validation', file=output_file)
     
     # This cross-validation object is a variation of KFold that returns stratified folds. 
@@ -203,7 +219,7 @@ def train_and_predict_svm(c, selected_feature_number, opt):
         y_train, y_val = data_y[train_index], data_y[val_index]
 
         selected_x_train, y_train, selected_feature_name = select_feature(opt, selected_feature_number, x_train, y_train, feature_name)
-        with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+        with open(opt.result_txt_path, 'a') as output_file:
             print('c:' + str(c) + ', feature number:' + str(selected_feature_number) + ', Selected features:' + str(selected_feature_name), file=output_file)
 
         masks = np.array([name in selected_feature_name for name in feature_name])
@@ -237,7 +253,7 @@ def train_and_test_svm(opt, selected_feature_number, c, model_path, predict_resu
     
     selected_data_x, data_y, selected_feature_name = select_feature(opt, selected_feature_number, data_x, data_y, feature_name)
 
-    with open(os.path.join(PROJECT_PATH, 'results', 'output.txt'), 'a') as output_file:
+    with open(opt.result_txt_path, 'a') as output_file:
         print('Final train', file=output_file)
         print('c:' + str(c) + ', feature number:' + str(selected_feature_number) + ', Selected features:' + str(selected_feature_name), file=output_file)
 
